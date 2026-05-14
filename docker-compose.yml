@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: n8n-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: ${N8N_PORT}
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+      N8N_PROXY_HOPS: ${N8N_PROXY_HOPS}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL}
+
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+      TZ: ${TZ}
+
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_PERSONALIZATION_ENABLED: ${N8N_PERSONALIZATION_ENABLED}
+      N8N_DIAGNOSTICS_ENABLED: ${N8N_DIAGNOSTICS_ENABLED}
+      N8N_VERSION_NOTIFICATIONS_ENABLED: ${N8N_VERSION_NOTIFICATIONS_ENABLED}
+
+      DB_TYPE: ${DB_TYPE}
+      DB_POSTGRESDB_HOST: ${DB_POSTGRESDB_HOST}
+      DB_POSTGRESDB_PORT: ${DB_POSTGRESDB_PORT}
+      DB_POSTGRESDB_DATABASE: ${DB_POSTGRESDB_DATABASE}
+      DB_POSTGRESDB_USER: ${DB_POSTGRESDB_USER}
+      DB_POSTGRESDB_PASSWORD: ${DB_POSTGRESDB_PASSWORD}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./local-files:/files
+
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: n8n-tunnel
+    restart: unless-stopped
+    command: ["tunnel", "--config", "/etc/cloudflared/config.yml", "run"]
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - n8n
+
+volumes:
+  postgres_data:
+  n8n_data:
